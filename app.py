@@ -762,4 +762,3 @@ def show_chatbot(df):
 
 if __name__ == "__main__":
     main()
-# https://devansh7599-heart-disease-analysis-prediction-app-1kmh9a.streamlit.app/
