@@ -6,3 +6,5 @@ plotly
 seaborn
 matplotlib
 scikit-learn
+langchain-core
+langchain-google-genai
