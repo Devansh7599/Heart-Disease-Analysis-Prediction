@@ -7,6 +7,9 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import joblib
 from sklearn.preprocessing import StandardScaler, LabelEncoder
+# Add these imports for the chatbot
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import HumanMessage, AIMessage
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -147,10 +150,11 @@ def main():
     
     # Sidebar navigation
     st.sidebar.title("Navigation")
-    page = st.sidebar.radio("Choose a section:", 
-                           ["📊 Data Overview & Summary", 
-                            "📈 Data Visualizations", 
-                            "🔮 Heart Disease Prediction"])
+    page = st.sidebar.radio("Choose a section:", [
+                           "📊 Data Overview & Summary",
+                           "📈 Data Visualizations",
+                           "🔮 Heart Disease Prediction",
+                           "🤖 AI Health Assistant"])
     
     if page == "📊 Data Overview & Summary":
         show_data_overview(df)
@@ -158,6 +162,8 @@ def main():
         show_visualizations(df)
     elif page == "🔮 Heart Disease Prediction":
         show_prediction(df, model)
+    elif page == "🤖 AI Health Assistant": # New page logic
+        show_chatbot(df)
 
 def show_data_overview(df):
     st.header("📊 Data Overview & Summary")
@@ -687,5 +693,73 @@ def show_prediction(df, model):
             st.error(f"Error making prediction: {str(e)}")
             st.info("Please ensure all fields are filled correctly.")
 
+# Helper function to get Google API Key
+def get_google_api_key():
+    """Get Google API Key from Streamlit secrets or user input."""
+    if "GOOGLE_API_KEY" in st.secrets:
+        return st.secrets["GOOGLE_API_KEY"]
+    else:
+        return st.sidebar.text_input("Google API Key", key="google_api_key", type="password")
+
+def show_chatbot(df):
+    st.header("🤖 AI Health Assistant")
+    st.markdown("Ask me questions about the heart disease dataset or general health topics!")
+
+    # Get API Key
+    api_key = get_google_api_key()
+    if not api_key:
+        st.info("Please add your Google API Key to continue.")
+        st.stop()
+
+    # Initialize the ChatGoogleGenerativeAI model
+    try:
+        
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=api_key)
+    except Exception as e:
+        st.error(f"Failed to initialize the AI model. Please check your API key. Error: {e}")
+        st.stop()
+
+    # Initialize chat history in session state
+    if "chat_messages" not in st.session_state:
+        st.session_state.chat_messages = [
+            AIMessage(content="Hello! I'm your AI Health Assistant. How can I help you today?")
+        ]
+
+    # Display chat messages
+    for msg in st.session_state.chat_messages:
+        if isinstance(msg, AIMessage):
+            st.chat_message("ai").write(msg.content)
+        elif isinstance(msg, HumanMessage):
+            st.chat_message("human").write(msg.content)
+
+    # Handle user input
+    if prompt := st.chat_input("Ask a question..."):
+        st.session_state.chat_messages.append(HumanMessage(content=prompt))
+        st.chat_message("human").write(prompt)
+
+        # Prepare context for the AI
+        dataset_summary = df.head().to_string() + "\n\n" + df.describe().to_string()
+        full_prompt = f"""
+        You are an expert AI health assistant. Your knowledge is based on a heart disease dataset and general medical knowledge.
+        
+        Here is a summary of the dataset you have access to:
+        {dataset_summary}
+        
+        Based on this context and your general knowledge, please answer the user's question.
+        
+        User's question: "{prompt}"
+        """
+
+        # Get AI response
+        with st.spinner("Thinking..."):
+            try:
+                response = llm.invoke([HumanMessage(content=full_prompt)])
+                ai_response = AIMessage(content=response.content)
+                st.session_state.chat_messages.append(ai_response)
+                st.chat_message("ai").write(ai_response.content)
+            except Exception as e:
+                st.error(f"An error occurred while getting the response: {e}")
+
 if __name__ == "__main__":
     main()
+# https://devansh7599-heart-disease-analysis-prediction-app-1kmh9a.streamlit.app/
